@@ -1,0 +1,953 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sticky Calendar Tasks (Offline)</title>
+  <style>
+    :root{
+      --bg:#0b0f17;
+      --card:#121a2a;
+      --card2:#0f1524;
+      --text:#e9eefc;
+      --muted:#a9b4d0;
+      --line:rgba(255,255,255,.10);
+      --accent:#7aa7ff;
+      --good:#4ade80;
+      --warn:#fbbf24;
+      --bad:#fb7185;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius: 16px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:var(--sans);
+      background: radial-gradient(1200px 800px at 20% 0%, #17213a 0%, var(--bg) 50%) fixed;
+      color:var(--text);
+    }
+    header{
+      padding:18px 18px 10px;
+      position:sticky; top:0;
+      backdrop-filter: blur(10px);
+      background: rgba(11,15,23,.75);
+      border-bottom:1px solid var(--line);
+      z-index:5;
+    }
+    .wrap{max-width:1100px;margin:0 auto;}
+    .toprow{display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap;}
+    h1{
+      font-size:18px;margin:0;
+      display:flex; align-items:center; gap:10px;
+      letter-spacing:.2px;
+    }
+    .pill{
+      font-family:var(--mono);
+      font-size:12px;
+      padding:4px 10px;
+      border:1px solid var(--line);
+      border-radius:999px;
+      color:var(--muted);
+      background: rgba(255,255,255,.03);
+    }
+    .toolbar{
+      display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+    }
+    button, input, select, textarea{
+      font: inherit;
+      color:var(--text);
+      background: rgba(255,255,255,.03);
+      border:1px solid var(--line);
+      border-radius:12px;
+      padding:10px 12px;
+      outline:none;
+    }
+    button{cursor:pointer; transition:.15s transform, .15s background;}
+    button:hover{background: rgba(255,255,255,.06);}
+    button:active{transform: translateY(1px);}
+    .primary{border-color: rgba(122,167,255,.5); background: rgba(122,167,255,.12);}
+    .danger{border-color: rgba(251,113,133,.5); background: rgba(251,113,133,.10);}
+    .ghost{background: transparent;}
+    input[type="text"]{min-width:240px}
+    main{padding:14px 18px 26px;}
+    .grid{
+      display:grid;
+      grid-template-columns: 360px 1fr;
+      gap:14px;
+    }
+    @media (max-width: 980px){
+      .grid{grid-template-columns: 1fr;}
+    }
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      border:1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .card h2{
+      margin:0;
+      font-size:14px;
+      padding:14px 14px 10px;
+      border-bottom:1px solid var(--line);
+      color: var(--muted);
+      letter-spacing:.2px;
+    }
+    .card .content{padding:14px;}
+    .row{display:flex; gap:10px; flex-wrap:wrap;}
+    .row > *{flex:1}
+    label{display:block; font-size:12px; color:var(--muted); margin:0 0 6px;}
+    textarea{min-height:72px; resize:vertical;}
+    .chk{display:flex; gap:10px; align-items:center; margin-top:10px; color:var(--muted);}
+    .chk input{width:18px;height:18px;}
+    .tabs{display:flex; gap:8px; padding:10px 10px 0;}
+    .tab{
+      border-radius:999px;
+      padding:8px 12px;
+      border:1px solid var(--line);
+      color:var(--muted);
+      background: rgba(255,255,255,.03);
+    }
+    .tab.active{color:var(--text); border-color: rgba(122,167,255,.55); background: rgba(122,167,255,.12);}
+    .viewbar{
+      display:flex; gap:10px; align-items:center; justify-content:space-between;
+      padding:12px 12px 10px;
+      border-bottom:1px solid var(--line);
+    }
+    .viewtitle{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+    .viewtitle strong{font-size:14px}
+    .muted{color:var(--muted)}
+    .split{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+    .small{font-size:12px}
+    .list{padding:12px}
+    .task{
+      background: rgba(0,0,0,.18);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:12px;
+      margin-bottom:10px;
+    }
+    .taskhead{display:flex; gap:10px; justify-content:space-between; align-items:flex-start;}
+    .tasktitle{display:flex; gap:10px; align-items:flex-start;}
+    .badge{
+      font-size:11px;
+      padding:3px 8px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      color:var(--muted);
+      font-family:var(--mono);
+      white-space:nowrap;
+    }
+    .badge.good{border-color: rgba(74,222,128,.45); color:#c7f9d9; background: rgba(74,222,128,.10);}
+    .badge.warn{border-color: rgba(251,191,36,.5); color:#ffe8a5; background: rgba(251,191,36,.10);}
+    .badge.bad{border-color: rgba(251,113,133,.55); color:#ffd0d8; background: rgba(251,113,133,.10);}
+    .tag{
+      font-size:11px;
+      padding:3px 8px;
+      border-radius:999px;
+      background: rgba(122,167,255,.10);
+      border:1px solid rgba(122,167,255,.35);
+      color:#cfe0ff;
+      font-family:var(--mono);
+    }
+    .task p{margin:8px 0 0; color:var(--muted); font-size:13px; line-height:1.35;}
+    .actions{display:flex; gap:8px; align-items:center;}
+    .actions button{padding:8px 10px; border-radius:12px;}
+    .taskdone{opacity:.65}
+    .taskdone .taskTitleText{text-decoration:line-through; text-decoration-thickness:2px}
+    .stickyBoard{
+      display:grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap:10px;
+      padding:12px;
+    }
+    .sticky{
+      background: linear-gradient(180deg, rgba(251,191,36,.18), rgba(251,191,36,.08));
+      border:1px solid rgba(251,191,36,.35);
+      border-radius: 16px;
+      padding:12px;
+      min-height:110px;
+      position:relative;
+    }
+    .sticky .top{
+      display:flex; justify-content:space-between; align-items:flex-start; gap:10px;
+      margin-bottom:6px;
+    }
+    .sticky .top strong{font-size:13px}
+    .sticky .note{color: rgba(255,255,255,.85); font-size:13px; line-height:1.35;}
+    .sticky .meta{margin-top:8px; color: rgba(255,255,255,.75); font-size:12px; font-family:var(--mono);}
+    .calendar{
+      padding:12px;
+      display:grid;
+      grid-template-columns: repeat(7, minmax(0,1fr));
+      gap:10px;
+    }
+    .daycol{
+      background: rgba(0,0,0,.16);
+      border:1px solid var(--line);
+      border-radius: 16px;
+      overflow:hidden;
+    }
+    .daycol .dh{
+      padding:10px 10px 8px;
+      border-bottom:1px solid var(--line);
+      display:flex; align-items:center; justify-content:space-between;
+      gap:10px;
+    }
+    .daycol .dh strong{font-size:13px}
+    .daycol .items{padding:10px}
+    .mini{
+      border:1px solid var(--line);
+      border-radius: 12px;
+      padding:8px;
+      margin-bottom:8px;
+      background: rgba(255,255,255,.03);
+    }
+    .mini .t{font-size:12px; display:flex; gap:8px; justify-content:space-between; align-items:flex-start;}
+    .mini .t .name{font-weight:600}
+    .mini .t .time{color:var(--muted); font-family:var(--mono); font-size:11px}
+    .mini .sub{margin-top:4px; color:var(--muted); font-size:12px; line-height:1.3}
+    .month{
+      padding:12px;
+      display:grid;
+      grid-template-columns: repeat(7, minmax(0,1fr));
+      gap:10px;
+    }
+    .mcell{
+      min-height:120px;
+      background: rgba(0,0,0,.14);
+      border:1px solid var(--line);
+      border-radius: 16px;
+      overflow:hidden;
+    }
+    .mcell .mh{
+      padding:8px 10px;
+      border-bottom:1px solid var(--line);
+      display:flex; justify-content:space-between; align-items:center;
+      gap:10px;
+      color:var(--muted);
+      font-family:var(--mono);
+      font-size:12px;
+    }
+    .mcell.today{border-color: rgba(122,167,255,.55); box-shadow: 0 0 0 1px rgba(122,167,255,.25) inset;}
+    .mcell .mi{padding:8px 10px;}
+    .mcell .dot{
+      display:block;
+      border-left:3px solid rgba(122,167,255,.65);
+      padding-left:8px;
+      margin:0 0 6px;
+      font-size:12px;
+      color: rgba(255,255,255,.9);
+      overflow:hidden;
+      white-space:nowrap;
+      text-overflow:ellipsis;
+    }
+    footer{
+      padding:14px 18px 30px;
+      color:var(--muted);
+      font-size:12px;
+      text-align:center;
+    }
+    .hint{font-size:12px; color:var(--muted); margin-top:10px; line-height:1.35;}
+    .filebtn{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+    .filebtn input[type="file"]{padding:8px 10px;}
+    .rightpanel .card{min-height:420px}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <div class="toprow">
+        <h1>
+          Sticky Calendar Tasks
+          <span class="pill">offline • localStorage</span>
+        </h1>
+        <div class="toolbar">
+          <input id="search" type="text" placeholder="Search tasks…" />
+          <select id="filter">
+            <option value="all">All</option>
+            <option value="open">Open</option>
+            <option value="done">Done</option>
+            <option value="overdue">Overdue</option>
+            <option value="today">Due Today</option>
+            <option value="week">Due This Week</option>
+            <option value="pinned">Pinned Stickies</option>
+          </select>
+          <button id="exportBtn" class="ghost">Export</button>
+          <label class="ghost" style="padding:0;border:none;background:transparent;">
+            <input id="importFile" type="file" accept="application/json" />
+          </label>
+          <button id="wipeBtn" class="danger">Wipe</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="grid">
+      <!-- LEFT: Add/Edit -->
+      <section class="card">
+        <h2>Add / Edit Task</h2>
+        <div class="content">
+          <input type="hidden" id="editId" />
+          <div style="margin-bottom:10px;">
+            <label for="title">Title</label>
+            <input id="title" type="text" placeholder="e.g., HIST discussion post #1" />
+          </div>
+
+          <div class="row" style="margin-bottom:10px;">
+            <div>
+              <label for="date">Due Date</label>
+              <input id="date" type="date" />
+            </div>
+            <div>
+              <label for="time">Time (optional)</label>
+              <input id="time" type="time" />
+            </div>
+          </div>
+
+          <div class="row" style="margin-bottom:10px;">
+            <div>
+              <label for="tag">Tag (optional)</label>
+              <input id="tag" type="text" placeholder="school / work / FD / personal" />
+            </div>
+            <div>
+              <label for="priority">Priority</label>
+              <select id="priority">
+                <option value="normal">Normal</option>
+                <option value="high">High</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="margin-bottom:10px;">
+            <label for="notes">Notes (optional)</label>
+            <textarea id="notes" placeholder="Details, link reminders, steps…"></textarea>
+          </div>
+
+          <div class="chk">
+            <input id="pinned" type="checkbox" />
+            <label for="pinned" style="margin:0;">Pin as “sticky note”</label>
+          </div>
+
+          <div class="row" style="margin-top:12px;">
+            <button id="saveBtn" class="primary">Save</button>
+            <button id="clearBtn">Clear</button>
+          </div>
+
+          <div class="hint">
+            Tips:
+            <ul>
+              <li>Week view is great for “what’s due soon.” Month view is great for scanning deadlines.</li>
+              <li>Use “Pinned” for sticky notes like “Call advisor” or “Buy pellet bags.”</li>
+              <li>Export occasionally if you care about backups.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT: Views -->
+      <section class="rightpanel card">
+        <div class="tabs">
+          <button class="tab active" data-tab="week">Week</button>
+          <button class="tab" data-tab="month">Month</button>
+          <button class="tab" data-tab="list">List</button>
+          <button class="tab" data-tab="stickies">Stickies</button>
+        </div>
+
+        <div class="viewbar">
+          <div class="viewtitle">
+            <strong id="viewName">Week View</strong>
+            <span class="muted small" id="viewRange"></span>
+          </div>
+          <div class="split">
+            <button id="prevBtn" class="ghost">◀</button>
+            <button id="todayBtn" class="ghost">Today</button>
+            <button id="nextBtn" class="ghost">▶</button>
+          </div>
+        </div>
+
+        <div id="viewHost"></div>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    Everything is stored locally in your browser (localStorage). No account. No internet. ✨
+  </footer>
+
+<script>
+(() => {
+  // ---------- Storage ----------
+  const KEY = "stickyCalendarTasks_v1";
+  const load = () => {
+    try { return JSON.parse(localStorage.getItem(KEY) || "[]"); }
+    catch { return []; }
+  };
+  const saveAll = (tasks) => localStorage.setItem(KEY, JSON.stringify(tasks));
+
+  // ---------- Helpers ----------
+  const uid = () => Math.random().toString(16).slice(2) + "-" + Date.now().toString(16);
+
+  const pad2 = (n) => String(n).padStart(2, "0");
+
+  const toDateKey = (d) => {
+    // d: Date
+    return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+  };
+
+  const parseDateKey = (key) => {
+    // key: YYYY-MM-DD
+    const [y,m,dd] = key.split("-").map(Number);
+    return new Date(y, m-1, dd, 12, 0, 0, 0);
+  };
+
+  const startOfWeek = (d) => {
+    // Monday start
+    const x = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12);
+    const day = (x.getDay() + 6) % 7; // Mon=0 ... Sun=6
+    x.setDate(x.getDate() - day);
+    return x;
+  };
+
+  const endOfWeek = (d) => {
+    const s = startOfWeek(d);
+    const e = new Date(s);
+    e.setDate(e.getDate() + 6);
+    return e;
+  };
+
+  const startOfMonthGrid = (d) => {
+    const first = new Date(d.getFullYear(), d.getMonth(), 1, 12);
+    const day = (first.getDay() + 6) % 7; // Monday=0
+    const s = new Date(first);
+    s.setDate(first.getDate() - day);
+    return s;
+  };
+
+  const fmtHuman = (key) => {
+    const d = parseDateKey(key);
+    return d.toLocaleDateString(undefined, { weekday:"short", month:"short", day:"numeric" });
+  };
+
+  const todayKey = () => toDateKey(new Date());
+
+  const dueStatus = (task) => {
+    if (!task.date) return "none";
+    const t = todayKey();
+    if (task.done) return "done";
+    if (task.date < t) return "overdue";
+    if (task.date === t) return "today";
+    // within 7 days
+    const now = parseDateKey(t);
+    const due = parseDateKey(task.date);
+    const diffDays = Math.round((due - now) / (1000*60*60*24));
+    if (diffDays <= 7) return "soon";
+    return "later";
+  };
+
+  const statusBadge = (task) => {
+    const s = dueStatus(task);
+    if (s === "done") return `<span class="badge good">DONE</span>`;
+    if (s === "overdue") return `<span class="badge bad">OVERDUE</span>`;
+    if (s === "today") return `<span class="badge warn">TODAY</span>`;
+    if (s === "soon") return `<span class="badge warn">SOON</span>`;
+    if (s === "later") return `<span class="badge">LATER</span>`;
+    return `<span class="badge">NO DATE</span>`;
+  };
+
+  const priorityBadge = (task) => {
+    if (task.priority === "high") return `<span class="badge bad">HIGH</span>`;
+    if (task.priority === "low") return `<span class="badge good">LOW</span>`;
+    return "";
+  };
+
+  const normalize = (s) => (s || "").toLowerCase().trim();
+
+  // ---------- State ----------
+  let tasks = load();
+  let tab = "week";
+  let anchorDate = new Date(); // controls week/month browsing
+
+  // ---------- Elements ----------
+  const $ = (id) => document.getElementById(id);
+
+  const el = {
+    editId: $("editId"),
+    title: $("title"),
+    date: $("date"),
+    time: $("time"),
+    tag: $("tag"),
+    notes: $("notes"),
+    pinned: $("pinned"),
+    priority: $("priority"),
+    saveBtn: $("saveBtn"),
+    clearBtn: $("clearBtn"),
+    search: $("search"),
+    filter: $("filter"),
+    viewHost: $("viewHost"),
+    viewName: $("viewName"),
+    viewRange: $("viewRange"),
+    prevBtn: $("prevBtn"),
+    nextBtn: $("nextBtn"),
+    todayBtn: $("todayBtn"),
+    exportBtn: $("exportBtn"),
+    importFile: $("importFile"),
+    wipeBtn: $("wipeBtn"),
+  };
+
+  // ---------- CRUD ----------
+  const upsertTask = (t) => {
+    const idx = tasks.findIndex(x => x.id === t.id);
+    if (idx >= 0) tasks[idx] = t;
+    else tasks.unshift(t);
+    saveAll(tasks);
+    render();
+  };
+
+  const deleteTask = (id) => {
+    tasks = tasks.filter(t => t.id !== id);
+    saveAll(tasks);
+    render();
+  };
+
+  const toggleDone = (id) => {
+    tasks = tasks.map(t => t.id === id ? ({...t, done: !t.done}) : t);
+    saveAll(tasks);
+    render();
+  };
+
+  const togglePinned = (id) => {
+    tasks = tasks.map(t => t.id === id ? ({...t, pinned: !t.pinned}) : t);
+    saveAll(tasks);
+    render();
+  };
+
+  const startEdit = (id) => {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    el.editId.value = t.id;
+    el.title.value = t.title || "";
+    el.date.value = t.date || "";
+    el.time.value = t.time || "";
+    el.tag.value = t.tag || "";
+    el.notes.value = t.notes || "";
+    el.pinned.checked = !!t.pinned;
+    el.priority.value = t.priority || "normal";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const clearForm = () => {
+    el.editId.value = "";
+    el.title.value = "";
+    el.date.value = "";
+    el.time.value = "";
+    el.tag.value = "";
+    el.notes.value = "";
+    el.pinned.checked = false;
+    el.priority.value = "normal";
+  };
+
+  // ---------- Filtering ----------
+  const filteredTasks = () => {
+    const q = normalize(el.search.value);
+    const mode = el.filter.value;
+    const tKey = todayKey();
+
+    return tasks
+      .filter(t => {
+        const blob = normalize(`${t.title} ${t.tag} ${t.notes} ${t.date} ${t.time}`);
+        if (q && !blob.includes(q)) return false;
+
+        if (mode === "all") return true;
+        if (mode === "open") return !t.done;
+        if (mode === "done") return !!t.done;
+        if (mode === "pinned") return !!t.pinned;
+        if (mode === "overdue") return !t.done && t.date && t.date < tKey;
+        if (mode === "today") return !t.done && t.date === tKey;
+        if (mode === "week") {
+          const s = toDateKey(startOfWeek(new Date()));
+          const e = toDateKey(endOfWeek(new Date()));
+          return !t.done && t.date && t.date >= s && t.date <= e;
+        }
+        return true;
+      })
+      .sort((a,b) => {
+        // sort: open first, then by date/time, then pinned, then created
+        if (!!a.done !== !!b.done) return a.done ? 1 : -1;
+        if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
+
+        const ad = a.date || "9999-12-31";
+        const bd = b.date || "9999-12-31";
+        if (ad !== bd) return ad.localeCompare(bd);
+
+        const at = a.time || "99:99";
+        const bt = b.time || "99:99";
+        if (at !== bt) return at.localeCompare(bt);
+
+        return (b.createdAt || 0) - (a.createdAt || 0);
+      });
+  };
+
+  // ---------- Rendering ----------
+  const setActiveTab = (name) => {
+    tab = name;
+    document.querySelectorAll(".tab").forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.tab === tab);
+    });
+    render();
+  };
+
+  const renderHeaderRange = () => {
+    if (tab === "week") {
+      el.viewName.textContent = "Week View";
+      const s = startOfWeek(anchorDate);
+      const e = endOfWeek(anchorDate);
+      el.viewRange.textContent = `${s.toLocaleDateString(undefined,{month:"short",day:"numeric"})} – ${e.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})}`;
+    } else if (tab === "month") {
+      el.viewName.textContent = "Month View";
+      el.viewRange.textContent = anchorDate.toLocaleDateString(undefined, { month:"long", year:"numeric" });
+    } else if (tab === "list") {
+      el.viewName.textContent = "Fancy List";
+      el.viewRange.textContent = "grouped + sorted";
+    } else {
+      el.viewName.textContent = "Stickies";
+      el.viewRange.textContent = "pinned notes";
+    }
+  };
+
+  const renderWeek = (items) => {
+    const s = startOfWeek(anchorDate);
+    const days = [...Array(7)].map((_,i) => {
+      const d = new Date(s);
+      d.setDate(d.getDate()+i);
+      return d;
+    });
+
+    const byDay = new Map(days.map(d => [toDateKey(d), []]));
+    items.forEach(t => {
+      if (t.date && byDay.has(t.date)) byDay.get(t.date).push(t);
+    });
+
+    days.forEach(d => {
+      const key = toDateKey(d);
+      const arr = byDay.get(key);
+      arr.sort((a,b) => (a.time||"99:99").localeCompare(b.time||"99:99"));
+    });
+
+    const tKey = todayKey();
+    el.viewHost.innerHTML = `
+      <div class="calendar">
+        ${days.map(d => {
+          const key = toDateKey(d);
+          const isToday = key === tKey;
+          const label = d.toLocaleDateString(undefined,{weekday:"short"});
+          return `
+            <div class="daycol">
+              <div class="dh">
+                <strong>${label}</strong>
+                <span class="badge ${isToday ? "warn" : ""}">${d.getMonth()+1}/${d.getDate()}</span>
+              </div>
+              <div class="items">
+                ${(byDay.get(key) || []).map(t => `
+                  <div class="mini ${t.done ? "taskdone" : ""}">
+                    <div class="t">
+                      <div class="name">${escapeHtml(t.title || "(untitled)")}</div>
+                      <div class="time">${t.time ? escapeHtml(t.time) : ""}</div>
+                    </div>
+                    ${t.tag ? `<div class="sub"><span class="tag">${escapeHtml(t.tag)}</span></div>` : ""}
+                    <div class="sub">
+                      <button class="ghost" data-act="done" data-id="${t.id}">${t.done ? "Undo" : "Done"}</button>
+                      <button class="ghost" data-act="edit" data-id="${t.id}">Edit</button>
+                      <button class="ghost" data-act="pin" data-id="${t.id}">${t.pinned ? "Unpin" : "Pin"}</button>
+                    </div>
+                  </div>
+                `).join("") || `<div class="muted small">No tasks</div>`}
+              </div>
+            </div>
+          `;
+        }).join("")}
+      </div>
+    `;
+  };
+
+  const renderMonth = (items) => {
+    const gridStart = startOfMonthGrid(anchorDate);
+    const cells = [...Array(42)].map((_,i) => {
+      const d = new Date(gridStart);
+      d.setDate(d.getDate()+i);
+      return d;
+    });
+
+    const month = anchorDate.getMonth();
+    const byDay = new Map();
+    items.forEach(t => {
+      if (!t.date) return;
+      if (!byDay.has(t.date)) byDay.set(t.date, []);
+      byDay.get(t.date).push(t);
+    });
+
+    const tKey = todayKey();
+
+    el.viewHost.innerHTML = `
+      <div class="month">
+        ${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(x => `<div class="muted small" style="padding:2px 6px">${x}</div>`).join("")}
+        ${cells.map(d => {
+          const key = toDateKey(d);
+          const inMonth = d.getMonth() === month;
+          const arr = (byDay.get(key) || []).slice().sort((a,b) => (a.time||"99:99").localeCompare(b.time||"99:99"));
+          const cls = `mcell ${key===tKey ? "today":""}`;
+          return `
+            <div class="${cls}" style="opacity:${inMonth ? "1" : ".55"}">
+              <div class="mh">
+                <span>${d.getDate()}</span>
+                <span>${arr.length ? arr.length+"·" : ""}</span>
+              </div>
+              <div class="mi">
+                ${arr.slice(0,4).map(t => `
+                  <span class="dot" title="${escapeHtml(t.title || "")}">
+                    ${t.done ? "✓ " : ""}${escapeHtml(t.title || "(untitled)")}
+                  </span>
+                `).join("")}
+                ${arr.length > 4 ? `<div class="muted small">+${arr.length-4} more</div>` : ""}
+              </div>
+            </div>
+          `;
+        }).join("")}
+      </div>
+    `;
+  };
+
+  const renderList = (items) => {
+    // group into Overdue / Today / Soon / Later / No date / Done
+    const groups = { Overdue:[], Today:[], Soon:[], Later:[], "No date":[], Done:[] };
+    items.forEach(t => {
+      const s = dueStatus(t);
+      if (s === "overdue") groups.Overdue.push(t);
+      else if (s === "today") groups.Today.push(t);
+      else if (s === "soon") groups.Soon.push(t);
+      else if (s === "later") groups.Later.push(t);
+      else if (s === "done") groups.Done.push(t);
+      else groups["No date"].push(t);
+    });
+
+    const section = (name, arr) => `
+      <div style="margin-bottom:14px;">
+        <div class="muted" style="padding:6px 2px 10px; font-size:12px; letter-spacing:.2px;">
+          ${name} <span class="pill" style="margin-left:8px;">${arr.length}</span>
+        </div>
+        ${arr.map(t => `
+          <div class="task ${t.done ? "taskdone" : ""}">
+            <div class="taskhead">
+              <div class="tasktitle">
+                <div>
+                  <div class="taskTitleText" style="font-weight:700;">
+                    ${escapeHtml(t.title || "(untitled)")}
+                  </div>
+                  <div style="margin-top:6px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                    ${statusBadge(t)}
+                    ${priorityBadge(t)}
+                    ${t.tag ? `<span class="tag">${escapeHtml(t.tag)}</span>` : ""}
+                    ${t.pinned ? `<span class="badge warn">PINNED</span>` : ""}
+                    ${t.date ? `<span class="badge">${escapeHtml(fmtHuman(t.date))}${t.time ? " · "+escapeHtml(t.time) : ""}</span>` : ""}
+                  </div>
+                </div>
+              </div>
+              <div class="actions">
+                <button class="ghost" data-act="done" data-id="${t.id}">${t.done ? "Undo" : "Done"}</button>
+                <button class="ghost" data-act="edit" data-id="${t.id}">Edit</button>
+                <button class="ghost" data-act="pin" data-id="${t.id}">${t.pinned ? "Unpin" : "Pin"}</button>
+                <button class="danger" data-act="del" data-id="${t.id}">Delete</button>
+              </div>
+            </div>
+            ${t.notes ? `<p>${escapeHtml(t.notes)}</p>` : ""}
+          </div>
+        `).join("") || `<div class="muted small" style="padding:8px 2px;">Nothing here.</div>`}
+      </div>
+    `;
+
+    el.viewHost.innerHTML = `
+      <div class="list">
+        ${section("Overdue", groups.Overdue)}
+        ${section("Today", groups.Today)}
+        ${section("Soon (next 7 days)", groups.Soon)}
+        ${section("Later", groups.Later)}
+        ${section("No date", groups["No date"])}
+        ${section("Done", groups.Done)}
+      </div>
+    `;
+  };
+
+  const renderStickies = (items) => {
+    const pinned = items.filter(t => t.pinned).slice(0, 8);
+    el.viewHost.innerHTML = `
+      <div class="stickyBoard">
+        ${pinned.map(t => `
+          <div class="sticky">
+            <div class="top">
+              <strong>${escapeHtml(t.title || "(untitled)")}</strong>
+              <div>
+                <button class="ghost" data-act="edit" data-id="${t.id}">Edit</button>
+                <button class="ghost" data-act="pin" data-id="${t.id}">Unpin</button>
+              </div>
+            </div>
+            <div class="note">${escapeHtml(t.notes || "—")}</div>
+            <div class="meta">
+              ${t.date ? `${escapeHtml(fmtHuman(t.date))}${t.time ? " · "+escapeHtml(t.time) : ""}` : "No date"}
+            </div>
+          </div>
+        `).join("") || `
+          <div class="muted small" style="padding:12px;">
+            Pin tasks to make them show up here like sticky notes.
+          </div>
+        `}
+      </div>
+    `;
+  };
+
+  function escapeHtml(str){
+    return (str ?? "").toString()
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
+
+  const render = () => {
+    renderHeaderRange();
+    const items = filteredTasks();
+
+    if (tab === "week") renderWeek(items);
+    else if (tab === "month") renderMonth(items);
+    else if (tab === "list") renderList(items);
+    else renderStickies(items);
+
+    wireActions();
+  };
+
+  const wireActions = () => {
+    el.viewHost.querySelectorAll("[data-act]").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        const act = e.currentTarget.dataset.act;
+        const id = e.currentTarget.dataset.id;
+        if (act === "done") toggleDone(id);
+        if (act === "edit") startEdit(id);
+        if (act === "pin") togglePinned(id);
+        if (act === "del") deleteTask(id);
+      });
+    });
+  };
+
+  // ---------- Events ----------
+  document.querySelectorAll(".tab").forEach(btn => {
+    btn.addEventListener("click", () => setActiveTab(btn.dataset.tab));
+  });
+
+  el.saveBtn.addEventListener("click", () => {
+    const title = el.title.value.trim();
+    const date = el.date.value;
+    if (!title) { alert("Give it a title."); return; }
+
+    const existingId = el.editId.value;
+    const now = Date.now();
+
+    const task = {
+      id: existingId || uid(),
+      title,
+      date: date || "",
+      time: el.time.value || "",
+      tag: el.tag.value.trim(),
+      notes: el.notes.value.trim(),
+      pinned: el.pinned.checked,
+      priority: el.priority.value || "normal",
+      done: existingId ? (tasks.find(t => t.id === existingId)?.done ?? false) : false,
+      createdAt: existingId ? (tasks.find(t => t.id === existingId)?.createdAt ?? now) : now,
+      updatedAt: now
+    };
+
+    upsertTask(task);
+    clearForm();
+  });
+
+  el.clearBtn.addEventListener("click", clearForm);
+
+  el.search.addEventListener("input", render);
+  el.filter.addEventListener("change", render);
+
+  el.prevBtn.addEventListener("click", () => {
+    if (tab === "week") {
+      anchorDate.setDate(anchorDate.getDate() - 7);
+    } else if (tab === "month") {
+      anchorDate = new Date(anchorDate.getFullYear(), anchorDate.getMonth() - 1, 1, 12);
+    }
+    render();
+  });
+
+  el.nextBtn.addEventListener("click", () => {
+    if (tab === "week") {
+      anchorDate.setDate(anchorDate.getDate() + 7);
+    } else if (tab === "month") {
+      anchorDate = new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 1, 12);
+    }
+    render();
+  });
+
+  el.todayBtn.addEventListener("click", () => {
+    anchorDate = new Date();
+    render();
+  });
+
+  el.exportBtn.addEventListener("click", () => {
+    const data = JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), tasks }, null, 2);
+    const blob = new Blob([data], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "sticky-calendar-tasks-backup.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  el.importFile.addEventListener("change", async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const obj = JSON.parse(text);
+      const incoming = Array.isArray(obj) ? obj : (obj.tasks || []);
+      if (!Array.isArray(incoming)) throw new Error("Bad file format.");
+
+      // merge by id
+      const map = new Map(tasks.map(t => [t.id, t]));
+      incoming.forEach(t => {
+        if (!t || !t.id) return;
+        map.set(t.id, { ...map.get(t.id), ...t });
+      });
+      tasks = Array.from(map.values());
+      saveAll(tasks);
+      render();
+      e.target.value = "";
+      alert("Imported!");
+    } catch (err) {
+      alert("Import failed: " + err.message);
+    }
+  });
+
+  el.wipeBtn.addEventListener("click", () => {
+    if (!confirm("Wipe all tasks? This cannot be undone (unless you exported).")) return;
+    tasks = [];
+    saveAll(tasks);
+    clearForm();
+    render();
+  });
+
+  // ---------- Init ----------
+  render();
+})();
+</script>
+</body>
+</html>
